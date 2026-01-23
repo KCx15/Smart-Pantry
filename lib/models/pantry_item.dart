@@ -22,6 +22,12 @@ class PantryItem extends HiveObject {
   @HiveField(5)
   final DateTime createdAt;
 
+  @HiveField(7)
+  final bool reminderEnabled;
+
+  @HiveField(8)
+  final int notificationId;
+
   PantryItem({
     required this.id,
     required this.name,
@@ -29,6 +35,8 @@ class PantryItem extends HiveObject {
     required this.expiryDate,
     required this.createdAt,
     this.imagePath,
+    required this.reminderEnabled,
+    required this.notificationId,
   });
 
   PantryItem copyWith({
@@ -38,6 +46,8 @@ class PantryItem extends HiveObject {
     DateTime? expiryDate,
     String? imagePath,
     DateTime? createdAt,
+    bool? reminderEnabled,
+    int? notificationId,
   }) {
     return PantryItem(
       id: id ?? this.id,
@@ -46,6 +56,8 @@ class PantryItem extends HiveObject {
       expiryDate: expiryDate ?? this.expiryDate,
       imagePath: imagePath ?? this.imagePath,
       createdAt: createdAt ?? this.createdAt,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      notificationId: notificationId ?? this.notificationId,
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/pantry_item.dart';
 import 'pantry_controller.dart';
 import 'add_edit_item_screen.dart';
+import 'dart:io';
 
 class PantryListScreen extends ConsumerStatefulWidget {
   const PantryListScreen({super.key});
@@ -167,6 +168,19 @@ class _PantryListTile extends ConsumerWidget {
           label: Text(label, style: const TextStyle(color: Colors.white)),
           backgroundColor: chipColor,
         ),
+        leading: item.imagePath == null
+            ? const CircleAvatar(child: Icon(Icons.inventory_2))
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(item.imagePath!),
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const CircleAvatar(child: Icon(Icons.broken_image)),
+                ),
+              ),
       ),
     );
   }

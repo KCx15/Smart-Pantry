@@ -23,13 +23,15 @@ class PantryItemAdapter extends TypeAdapter<PantryItem> {
       expiryDate: fields[3] as DateTime,
       createdAt: fields[5] as DateTime,
       imagePath: fields[4] as String?,
+      reminderEnabled: fields[7] as bool,
+      notificationId: fields[8] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, PantryItem obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -41,7 +43,11 @@ class PantryItemAdapter extends TypeAdapter<PantryItem> {
       ..writeByte(4)
       ..write(obj.imagePath)
       ..writeByte(5)
-      ..write(obj.createdAt);
+      ..write(obj.createdAt)
+      ..writeByte(7)
+      ..write(obj.reminderEnabled)
+      ..writeByte(8)
+      ..write(obj.notificationId);
   }
 
   @override

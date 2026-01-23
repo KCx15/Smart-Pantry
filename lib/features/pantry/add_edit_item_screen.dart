@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../models/pantry_item.dart';
+import '../../services/image_service.dart';
 import 'pantry_controller.dart';
 
 class AddEditItemScreen extends ConsumerStatefulWidget {
@@ -17,7 +21,11 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _qtyCtrl;
 
+  final _imageService = ImageService();
+  String? _imagePath;
+
   DateTime? _expiryDate;
+  bool _reminderEnabled = false;
 
   bool get _isEdit => widget.existing != null;
 
@@ -25,11 +33,15 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   void initState() {
     super.initState();
     final existing = widget.existing;
+
     _nameCtrl = TextEditingController(text: existing?.name ?? '');
     _qtyCtrl = TextEditingController(
       text: (existing?.quantity ?? 1).toString(),
     );
+
     _expiryDate = existing?.expiryDate;
+    _imagePath = existing?.imagePath;
+    _reminderEnabled = existing?.reminderEnabled ?? false;
   }
 
   @override
@@ -37,6 +49,43 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     _nameCtrl.dispose();
     _qtyCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(ctx, null),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    File? file;
+    if (choice == 'camera') file = await _imageService.takePhoto();
+    if (choice == 'gallery') file = await _imageService.pickFromGallery();
+
+    if (file != null) {
+      setState(() => _imagePath = file!.path);
+    }
   }
 
   Future<void> _pickExpiryDate() async {
@@ -63,12 +112,20 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
         name: name,
         quantity: qty,
         expiryDate: expiry,
+        imagePath: _imagePath,
+        reminderEnabled: _reminderEnabled,
       );
       await ref.read(pantryControllerProvider.notifier).updateItem(updated);
     } else {
       await ref
           .read(pantryControllerProvider.notifier)
-          .addItem(name: name, quantity: qty, expiryDate: expiry);
+          .addItem(
+            name: name,
+            quantity: qty,
+            expiryDate: expiry,
+            imagePath: _imagePath,
+            reminderEnabled: _reminderEnabled,
+          );
     }
 
     if (!mounted) return;
@@ -130,6 +187,44 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                     label: Text(expiryText),
                   ),
                 ),
+
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Expiry reminder'),
+                  subtitle: const Text(
+                    'Notify me 2 days before expiry at 9:00 AM',
+                  ),
+                  value: _reminderEnabled,
+                  onChanged: (v) => setState(() => _reminderEnabled = v),
+                ),
+
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.add_a_photo),
+                      label: Text(
+                        _imagePath == null ? 'Add photo' : 'Change photo',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    if (_imagePath != null)
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            File(_imagePath!),
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const Text('Could not load image'),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
