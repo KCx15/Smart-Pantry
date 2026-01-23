@@ -1,20 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/pantry_item.dart';
 import 'pantry_controller.dart';
 
-class AddItemScreen extends ConsumerStatefulWidget {
-  const AddItemScreen({super.key});
+class AddEditItemScreen extends ConsumerStatefulWidget {
+  final PantryItem? existing;
+
+  const AddEditItemScreen({super.key, this.existing});
 
   @override
-  ConsumerState<AddItemScreen> createState() => _AddItemScreenState();
+  ConsumerState<AddEditItemScreen> createState() => _AddEditItemScreenState();
 }
 
-class _AddItemScreenState extends ConsumerState<AddItemScreen> {
+class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  final _qtyCtrl = TextEditingController(text: '1');
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _qtyCtrl;
 
   DateTime? _expiryDate;
+
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _nameCtrl = TextEditingController(text: existing?.name ?? '');
+    _qtyCtrl = TextEditingController(
+      text: (existing?.quantity ?? 1).toString(),
+    );
+    _expiryDate = existing?.expiryDate;
+  }
 
   @override
   void dispose() {
@@ -27,13 +43,11 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: now.add(const Duration(days: 7)),
+      initialDate: _expiryDate ?? now.add(const Duration(days: 7)),
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 10),
     );
-    if (picked != null) {
-      setState(() => _expiryDate = picked);
-    }
+    if (picked != null) setState(() => _expiryDate = picked);
   }
 
   Future<void> _save() async {
@@ -42,10 +56,20 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
 
     final expiry = _expiryDate ?? DateTime.now().add(const Duration(days: 7));
     final qty = int.parse(_qtyCtrl.text);
+    final name = _nameCtrl.text.trim();
 
-    await ref
-        .read(pantryControllerProvider.notifier)
-        .addItem(name: _nameCtrl.text, quantity: qty, expiryDate: expiry);
+    if (_isEdit) {
+      final updated = widget.existing!.copyWith(
+        name: name,
+        quantity: qty,
+        expiryDate: expiry,
+      );
+      await ref.read(pantryControllerProvider.notifier).updateItem(updated);
+    } else {
+      await ref
+          .read(pantryControllerProvider.notifier)
+          .addItem(name: name, quantity: qty, expiryDate: expiry);
+    }
 
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -58,7 +82,7 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
         : 'Expiry: ${_expiryDate!.toLocal().toString().split(' ').first}';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Item')),
+      appBar: AppBar(title: Text(_isEdit ? 'Edit Item' : 'Add Item')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -112,7 +136,7 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
                   child: FilledButton.icon(
                     onPressed: _save,
                     icon: const Icon(Icons.save),
-                    label: const Text('Save'),
+                    label: Text(_isEdit ? 'Save changes' : 'Save'),
                   ),
                 ),
               ],

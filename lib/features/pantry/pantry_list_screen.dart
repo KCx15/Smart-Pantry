@@ -2,41 +2,93 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/pantry_item.dart';
 import 'pantry_controller.dart';
-import 'add_item_screen.dart';
+import 'add_edit_item_screen.dart';
 
-class PantryListScreen extends ConsumerWidget {
+class PantryListScreen extends ConsumerStatefulWidget {
   const PantryListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PantryListScreen> createState() => _PantryListScreenState();
+}
+
+class _PantryListScreenState extends ConsumerState<PantryListScreen> {
+  String _query = '';
+  bool _expiringOnly = false;
+
+  @override
+  Widget build(BuildContext context) {
     final items = ref.watch(pantryControllerProvider);
 
+    final filtered = items.where((item) {
+      final matchesQuery = item.name.toLowerCase().contains(
+        _query.toLowerCase(),
+      );
+      if (!matchesQuery) return false;
+
+      if (_expiringOnly) {
+        final daysLeft = item.expiryDate.difference(DateTime.now()).inDays;
+        return daysLeft <= 3; // expiring in 3 days or less (incl expired)
+      }
+      return true;
+    }).toList();
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Smart Pantry'),
-        actions: [
-          IconButton(
-            tooltip: 'Reload',
-            onPressed: () =>
-                ref.read(pantryControllerProvider.notifier).reload(),
-            icon: const Icon(Icons.refresh),
+      appBar: AppBar(title: const Text('Smart Pantry')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+            child: TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                labelText: 'Search items',
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Row(
+              children: [
+                FilterChip(
+                  label: const Text('Expiring soon'),
+                  selected: _expiringOnly,
+                  onSelected: (v) => setState(() => _expiringOnly = v),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Reload',
+                  onPressed: () =>
+                      ref.read(pantryControllerProvider.notifier).reload(),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Text(
+                      items.isEmpty
+                          ? 'No items yet. Tap + to add one.'
+                          : 'No matches. Try a different search.',
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      return _PantryListTile(item: item);
+                    },
+                  ),
           ),
         ],
       ),
-      body: items.isEmpty
-          ? const Center(child: Text('No items yet. Tap + to add one.'))
-          : ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return _PantryListTile(item: item);
-              },
-            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const AddItemScreen()));
+          ).push(MaterialPageRoute(builder: (_) => const AddEditItemScreen()));
         },
         tooltip: 'Add item',
         child: const Icon(Icons.add),
@@ -53,6 +105,17 @@ class _PantryListTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final daysLeft = item.expiryDate.difference(DateTime.now()).inDays;
+
+    final (label, icon) = daysLeft < 0
+        ? ('Expired', Icons.error)
+        : (
+            daysLeft <= 3 ? 'Expiring' : 'OK',
+            daysLeft <= 3 ? Icons.warning : Icons.check_circle,
+          );
+
+    final chipColor = daysLeft < 0
+        ? Colors.red
+        : (daysLeft <= 3 ? Colors.orange : Colors.green);
 
     return Dismissible(
       key: ValueKey(item.id),
@@ -90,9 +153,20 @@ class _PantryListTile extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text('Deleted ${item.name}')));
       },
       child: ListTile(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AddEditItemScreen(existing: item),
+            ),
+          );
+        },
         title: Text(item.name),
         subtitle: Text('Qty: ${item.quantity} • $daysLeft day(s) left'),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Chip(
+          avatar: Icon(icon, size: 18, color: Colors.white),
+          label: Text(label, style: const TextStyle(color: Colors.white)),
+          backgroundColor: chipColor,
+        ),
       ),
     );
   }
