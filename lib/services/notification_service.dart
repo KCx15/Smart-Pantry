@@ -12,6 +12,10 @@ class NotificationService {
   bool _tzReady = false;
   late tz.Location _location;
 
+  static const String _channelId = 'expiry_channel';
+  static const String _channelName = 'Expiry Reminders';
+  static const String _channelDesc = 'Notifications for items nearing expiry';
+
   Future<void> init() async {
     await _ensureTimeZoneReady();
 
@@ -20,19 +24,28 @@ class NotificationService {
 
     await _plugin.initialize(initSettings);
 
-    await _plugin
+    final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
+        >();
+
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _channelId,
+        _channelName,
+        description: _channelDesc,
+        importance: Importance.max,
+      ),
+    );
+
+    await androidPlugin?.requestNotificationsPermission();
   }
 
   Future<void> _ensureTimeZoneReady() async {
     if (_tzReady) return;
+
     tzdata.initializeTimeZones();
-
     _location = tz.getLocation('Europe/Malta');
-
     tz.setLocalLocation(_location);
 
     _tzReady = true;
@@ -56,22 +69,24 @@ class NotificationService {
 
     if (!targetDate.isAfter(DateTime.now())) return;
 
-    const androidDetails = AndroidNotificationDetails(
-      'expiry_channel',
-      'Expiry Reminders',
-      channelDescription: 'Notifications for items nearing expiry',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
+    final scheduled = tz.TZDateTime.from(targetDate, _location);
 
-    const details = NotificationDetails(android: androidDetails);
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDesc,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
 
     await _plugin.zonedSchedule(
       notificationId,
       'Pantry reminder',
       '$itemName is expiring soon.',
-      tz.TZDateTime.from(targetDate, _location),
-      details,
+      scheduled,
+      const NotificationDetails(android: androidDetails),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,

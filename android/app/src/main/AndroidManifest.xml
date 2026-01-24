@@ -6,6 +6,11 @@
         android:label="smart_pantry"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
+        <receiver
+    android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+    android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

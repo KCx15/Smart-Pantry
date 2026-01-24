@@ -13,7 +13,6 @@ final pantryControllerProvider =
 
 class PantryController extends Notifier<List<PantryItem>> {
   final _uuid = const Uuid();
-  final notifId = DateTime.now().millisecondsSinceEpoch.remainder(2000000000);
 
   PantryRepository get _repo => ref.read(pantryRepositoryProvider);
 
@@ -37,6 +36,8 @@ class PantryController extends Notifier<List<PantryItem>> {
     String? imagePath,
     bool reminderEnabled = false,
   }) async {
+    final notifId = DateTime.now().millisecondsSinceEpoch.remainder(2000000000);
+
     final item = PantryItem(
       id: _uuid.v4(),
       name: name.trim(),

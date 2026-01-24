@@ -4,6 +4,7 @@ import '../../models/pantry_item.dart';
 import 'pantry_controller.dart';
 import 'add_edit_item_screen.dart';
 import 'dart:io';
+import '../../services/notification_service.dart';
 
 class PantryListScreen extends ConsumerStatefulWidget {
   const PantryListScreen({super.key});
