@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/pantry_item.dart';
 import 'pantry_repository.dart';
 import '../../services/notification_service.dart';
+import '../../services/analytics_service.dart';
 
 final pantryRepositoryProvider = Provider<PantryRepository>((ref) {
   return PantryRepository();
@@ -49,6 +50,14 @@ class PantryController extends Notifier<List<PantryItem>> {
       notificationId: notifId,
     );
     await _repo.upsert(item);
+    await AnalyticsService.instance.itemAdded(
+      itemId: item.id,
+      reminderEnabled: item.reminderEnabled,
+    );
+    if (item.reminderEnabled) {
+      await AnalyticsService.instance.reminderScheduled(itemId: item.id);
+    }
+
     if (reminderEnabled) {
       await NotificationService.instance.scheduleExpiryReminder(
         notificationId: item.notificationId,
@@ -64,6 +73,8 @@ class PantryController extends Notifier<List<PantryItem>> {
 
     await _repo.upsert(updated);
 
+    await AnalyticsService.instance.itemUpdated(itemId: updated.id);
+
     if (old.reminderEnabled) {
       await NotificationService.instance.cancel(old.notificationId);
     }
@@ -74,6 +85,7 @@ class PantryController extends Notifier<List<PantryItem>> {
         itemName: updated.name,
         expiryDate: updated.expiryDate,
       );
+      await AnalyticsService.instance.reminderScheduled(itemId: updated.id);
     }
 
     state = [
@@ -91,6 +103,7 @@ class PantryController extends Notifier<List<PantryItem>> {
 
     await _repo.deleteById(id);
     state = state.where((i) => i.id != id).toList();
+    await AnalyticsService.instance.itemDeleted(itemId: item.id);
   }
 
   Future<void> reload() async => _load();

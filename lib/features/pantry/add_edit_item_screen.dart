@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:flutter/foundation.dart';
 import '../../models/pantry_item.dart';
 import '../../services/image_service.dart';
 import 'pantry_controller.dart';
@@ -213,13 +213,21 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                       Expanded(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            File(_imagePath!),
-                            height: 80,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const Text('Could not load image'),
-                          ),
+                          child: kIsWeb
+                              ? Container(
+                                  height: 80,
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'Image preview not supported on Web',
+                                  ),
+                                )
+                              : Image.file(
+                                  File(_imagePath!),
+                                  height: 80,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const Text('Could not load image'),
+                                ),
                         ),
                       ),
                   ],

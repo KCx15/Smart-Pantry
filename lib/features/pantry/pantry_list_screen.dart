@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/pantry_item.dart';
+import 'package:flutter/foundation.dart';
 import 'pantry_controller.dart';
 import 'add_edit_item_screen.dart';
 import 'dart:io';
-import '../../services/notification_service.dart';
 
 class PantryListScreen extends ConsumerStatefulWidget {
   const PantryListScreen({super.key});
@@ -171,6 +171,8 @@ class _PantryListTile extends ConsumerWidget {
         ),
         leading: item.imagePath == null
             ? const CircleAvatar(child: Icon(Icons.inventory_2))
+            : kIsWeb
+            ? const CircleAvatar(child: Icon(Icons.image_not_supported))
             : ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.file(

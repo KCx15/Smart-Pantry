@@ -9,7 +9,15 @@ class PantryRepository {
 
   Future<void> upsert(PantryItem item) async {
     final box = HiveService.pantryBox();
-    await box.put(item.id, item);
+    try {
+      await box.put(item.id, item);
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('❌ Hive put failed: $e');
+      // ignore: avoid_print
+      print(st);
+      rethrow;
+    }
   }
 
   Future<void> deleteById(String id) async {

@@ -2,6 +2,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+const bool kPresentationDebugMode = true;
+
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -59,17 +61,22 @@ class NotificationService {
   }) async {
     await _ensureTimeZoneReady();
 
-    final targetDate = DateTime(
-      expiryDate.year,
-      expiryDate.month,
-      expiryDate.day,
-      9,
-      0,
-    ).subtract(Duration(days: daysBefore));
+    final tz.TZDateTime scheduled;
 
-    if (!targetDate.isAfter(DateTime.now())) return;
+    if (kPresentationDebugMode) {
+      scheduled = tz.TZDateTime.now(_location).add(const Duration(seconds: 30));
+    } else {
+      final targetDate = DateTime(
+        expiryDate.year,
+        expiryDate.month,
+        expiryDate.day,
+        9,
+        0,
+      ).subtract(Duration(days: daysBefore));
 
-    final scheduled = tz.TZDateTime.from(targetDate, _location);
+      if (!targetDate.isAfter(DateTime.now())) return;
+      scheduled = tz.TZDateTime.from(targetDate, _location);
+    }
 
     const androidDetails = AndroidNotificationDetails(
       _channelId,
