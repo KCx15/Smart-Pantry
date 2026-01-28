@@ -155,8 +155,9 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                   ),
                   textInputAction: TextInputAction.next,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return 'Name is required';
+                    }
                     if (v.trim().length < 2) return 'Name too short';
                     return null;
                   },
@@ -170,8 +171,9 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                   ),
                   keyboardType: TextInputType.number,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
+                    if (v == null || v.trim().isEmpty) {
                       return 'Quantity required';
+                    }
                     final parsed = int.tryParse(v);
                     if (parsed == null) return 'Enter a whole number';
                     if (parsed <= 0) return 'Must be at least 1';

@@ -5,7 +5,7 @@ class AnalyticsService {
   AnalyticsService._();
   static final AnalyticsService instance = AnalyticsService._();
 
-  final FirebaseAnalytics _a = FirebaseAnalytics.instance;
+  FirebaseAnalytics get _a => FirebaseAnalytics.instance;
 
   Future<void> logAppStarted() async {
     try {
