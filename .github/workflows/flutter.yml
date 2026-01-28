@@ -13,10 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Flutter
+        uses: flutter-actions/setup-flutter@v4
         with:
-          flutter-version: "3.88.8"
-          channel: "stable"
+          channel: stable
+          version: 3.38.8
+
+      - name: Flutter version
+        run: flutter --version
 
       - name: Get dependencies
         run: flutter pub get
