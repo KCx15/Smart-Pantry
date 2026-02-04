@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:dotted_border/dotted_border.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart';
+
 import '../../models/pantry_item.dart';
 import '../../services/image_service.dart';
 import 'pantry_controller.dart';
@@ -104,7 +106,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     if (!valid) return;
 
     final expiry = _expiryDate ?? DateTime.now().add(const Duration(days: 7));
-    final qty = int.parse(_qtyCtrl.text);
+    final qty = int.parse(_qtyCtrl.text.trim());
     final name = _nameCtrl.text.trim();
 
     if (_isEdit) {
@@ -134,24 +136,35 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final expiryText = _expiryDate == null
-        ? 'Pick expiry date (default: +7 days)'
-        : 'Expiry: ${_expiryDate!.toLocal().toString().split(' ').first}';
+    final title = _isEdit ? 'Edit Item' : 'Add Item';
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'Edit Item' : 'Add Item')),
-      body: SafeArea(
+      appBar: AppBar(title: Text(title)),
+      bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
+          child: SizedBox(
+            height: 54,
+            width: double.infinity,
+            child: FilledButton(onPressed: _save, child: const Text('Save')),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const _SectionLabel('Item Name'),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _nameCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Item name',
-                    hintText: 'e.g., Pasta',
+                    hintText: 'e.g., Milk',
+                    border: OutlineInputBorder(),
                   ),
                   textInputAction: TextInputAction.next,
                   validator: (v) {
@@ -162,93 +175,152 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+
+                const _SectionLabel('Quantity'),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _qtyCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                    hintText: 'e.g., 2',
+                    hintText: 'e.g., 1',
+                    border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
                       return 'Quantity required';
                     }
-                    final parsed = int.tryParse(v);
+                    final parsed = int.tryParse(v.trim());
                     if (parsed == null) return 'Enter a whole number';
                     if (parsed <= 0) return 'Must be at least 1';
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: _pickExpiryDate,
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text(expiryText),
+                const SizedBox(height: 16),
+
+                const _SectionLabel('Expiry Date'),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: _pickExpiryDate,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      suffixIcon: Icon(Icons.calendar_today),
+                    ),
+                    child: Text(
+                      _expiryDate == null
+                          ? 'dd/mm/yyyy'
+                          : _expiryDate!.toLocal().toString().split(' ').first,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                const _SectionLabel('Item Image (Optional)'),
+                const SizedBox(height: 8),
+                _UploadBox(imagePath: _imagePath, onTap: _pickImage),
+                const SizedBox(height: 16),
 
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Expiry reminder'),
-                  subtitle: const Text(
-                    'Notify me 2 days before expiry at 9:00 AM',
-                  ),
+                  title: const Text('Enable Expiry Reminders'),
                   value: _reminderEnabled,
                   onChanged: (v) => setState(() => _reminderEnabled = v),
                 ),
 
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _pickImage,
-                      icon: const Icon(Icons.add_a_photo),
-                      label: Text(
-                        _imagePath == null ? 'Add photo' : 'Change photo',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    if (_imagePath != null)
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: kIsWeb
-                              ? Container(
-                                  height: 80,
-                                  alignment: Alignment.center,
-                                  child: const Text(
-                                    'Image preview not supported on Web',
-                                  ),
-                                )
-                              : Image.file(
-                                  File(_imagePath!),
-                                  height: 80,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      const Text('Could not load image'),
-                                ),
-                        ),
-                      ),
-                  ],
-                ),
-
-                const Spacer(),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _save,
-                    icon: const Icon(Icons.save),
-                    label: Text(_isEdit ? 'Save changes' : 'Save'),
-                  ),
-                ),
+                const SizedBox(height: 90),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+    );
+  }
+}
+
+class _UploadBox extends StatelessWidget {
+  final String? imagePath;
+  final VoidCallback onTap;
+
+  const _UploadBox({required this.imagePath, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = imagePath != null;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: DottedBorder(
+        borderType: BorderType.RRect,
+        radius: const Radius.circular(12),
+        dashPattern: const [6, 4],
+        color: Colors.grey.shade400,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 150,
+            width: double.infinity,
+            child: hasImage
+                ? _ImagePreview(path: imagePath!)
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.upload,
+                          size: 34,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text('Tap to upload image'),
+                        const SizedBox(height: 4),
+                        Text(
+                          'PNG, JPG up to 5MB',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  final String path;
+  const _ImagePreview({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return Center(
+        child: Text(
+          'Image preview not supported on Web',
+          style: TextStyle(color: Colors.grey.shade700),
+        ),
+      );
+    }
+
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) =>
+          const Center(child: Text('Could not load image')),
     );
   }
 }

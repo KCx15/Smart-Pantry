@@ -53,7 +53,7 @@ class PantryController extends Notifier<List<PantryItem>> {
     await AnalyticsService.instance.itemAdded(
       itemId: item.id,
       reminderEnabled: item.reminderEnabled,
-    );
+    ); // analytics
     if (item.reminderEnabled) {
       await AnalyticsService.instance.reminderScheduled(itemId: item.id);
     }

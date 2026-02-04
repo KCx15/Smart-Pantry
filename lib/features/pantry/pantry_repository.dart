@@ -12,9 +12,7 @@ class PantryRepository {
     try {
       await box.put(item.id, item);
     } catch (e, st) {
-      // ignore: avoid_print
       print('❌ Hive put failed: $e');
-      // ignore: avoid_print
       print(st);
       rethrow;
     }
