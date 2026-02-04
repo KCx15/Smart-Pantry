@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../features/pantry/pantry_list_screen.dart';
+import 'home_shell.dart';
 
 class SmartPantryApp extends StatelessWidget {
   const SmartPantryApp({super.key});
@@ -16,7 +16,7 @@ class SmartPantryApp extends StatelessWidget {
           border: OutlineInputBorder(),
         ),
       ),
-      home: const PantryListScreen(),
+      home: const HomeShell(),
     );
   }
 }
