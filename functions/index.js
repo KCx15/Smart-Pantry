@@ -21,7 +21,7 @@ exports.generateRecipes = onCall(
 
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-2.5-flash",
             generationConfig: { responseMimeType: "application/json" },
         });
 
@@ -53,6 +53,7 @@ Rules:
 Pantry:
 ${JSON.stringify(pantry, null, 2)}
 `;
+        console.log("generateRecipes called", { pantryCount: pantry.length });
 
         try {
             const result = await model.generateContent(prompt);
@@ -60,7 +61,22 @@ ${JSON.stringify(pantry, null, 2)}
             const json = JSON.parse(text);
             return json;
         } catch (e) {
-            throw new HttpsError("internal", String(e));
+            const details = {
+                name: e?.name,
+                message: e?.message,
+                status: e?.status,
+                stack: e?.stack,
+                raw: String(e),
+            };
+
+            console.error("Gemini error details:", JSON.stringify(details));
+
+            throw new HttpsError(
+                "internal",
+                details.message || details.raw || "Gemini request failed"
+            );
         }
+
+
     }
 );
