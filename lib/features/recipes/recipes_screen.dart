@@ -29,7 +29,9 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
         items: items,
       );
 
-      setState(() => _recipes = recipes);
+      final sorted = [...recipes]
+        ..sort((a, b) => b.matchScore.compareTo(a.matchScore));
+      setState(() => _recipes = sorted);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -109,6 +111,14 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
   }
 
   void _openRecipe(RecipeSuggestion r) {
+    final hasExpiring = r.expiringItemsUsed.isNotEmpty;
+
+    String scoreLabel(int s) {
+      if (s >= 85) return 'High match';
+      if (s >= 65) return 'Good match';
+      return 'Low match';
+    }
+
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -128,9 +138,29 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text('${r.cookTimeMinutes} min • ${r.difficulty}'),
-                const SizedBox(height: 16),
 
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Chip(label: Text('${r.cookTimeMinutes} min')),
+                    Chip(label: Text(r.difficulty)),
+                    Chip(
+                      label: Text(
+                        '${scoreLabel(r.matchScore)} • ${r.matchScore}/100',
+                      ),
+                    ),
+                    Chip(label: Text('${r.missingCount} missing')),
+                    if (hasExpiring)
+                      Chip(
+                        label: Text(
+                          'Uses expiring: ${r.expiringItemsUsed.join(', ')}',
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
                 const Text(
                   'Uses (from pantry)',
                   style: TextStyle(fontWeight: FontWeight.w800),
@@ -148,11 +178,16 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: r.missing.map((s) => Chip(label: Text(s))).toList(),
-                ),
+                if (r.missing.isEmpty)
+                  const Text('Nothing missing 🎉')
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: r.missing
+                        .map((s) => Chip(label: Text(s)))
+                        .toList(),
+                  ),
 
                 const SizedBox(height: 14),
                 const Text(
@@ -228,8 +263,17 @@ class _RecipeCard extends StatelessWidget {
 
   const _RecipeCard({required this.recipe, required this.onTap});
 
+  String _scoreLabel(int s) {
+    if (s >= 85) return 'High match';
+    if (s >= 65) return 'Good match';
+    return 'Low match';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scoreText = '${recipe.matchScore}/100';
+    final hasExpiring = recipe.expiringItemsUsed.isNotEmpty;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -240,7 +284,30 @@ class _RecipeCard extends StatelessWidget {
           recipe.title,
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
-        subtitle: Text('Uses: ${recipe.uses.take(3).join(', ')}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text('Uses: ${recipe.uses.take(3).join(', ')}'),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(
+                  label: Text('${_scoreLabel(recipe.matchScore)} • $scoreText'),
+                ),
+                Chip(label: Text('${recipe.missingCount} missing')),
+                if (hasExpiring)
+                  Chip(
+                    label: Text(
+                      'Uses expiring: ${recipe.expiringItemsUsed.take(2).join(', ')}',
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
         trailing: Text(
           '${recipe.cookTimeMinutes} min',
           style: TextStyle(
