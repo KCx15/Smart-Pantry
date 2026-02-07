@@ -1,22 +1,31 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const admin = require("firebase-admin");
+const crypto = require("crypto");
+
+admin.initializeApp();
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
-function toMidnight(d) {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+function normName(s) {
+    return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function daysUntil(iso) {
-    if (!iso) return null;
-    const dt = new Date(iso);
-    if (Number.isNaN(dt.getTime())) return null;
-
-    const today = toMidnight(new Date());
-    const target = toMidnight(dt);
-    const diffMs = target.getTime() - today.getTime();
-    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+function fingerprintPantry(pantry) {
+    // Choose what “same pantry” means:
+    // - include quantity? yes (recommended)
+    // - include expiry bucket? yes (expiringSoon vs not)
+    const parts = pantry
+        .map((p) => {
+            const name = normName(p.name);
+            const qty = Number(p.quantity || 0);
+            const expSoon = Boolean(p.expiring_soon);
+            return `${name}:${qty}:${expSoon ? "soon" : "later"}`;
+        })
+        .sort();
+    const str = parts.join("|");
+    return crypto.createHash("sha256").update(str).digest("hex");
 }
 
 exports.generateRecipes = onCall(
@@ -24,41 +33,36 @@ exports.generateRecipes = onCall(
     async (request) => {
         const data = request.data || {};
         const pantryInput = Array.isArray(data.pantry) ? data.pantry : [];
-
-        if (!pantryInput.length) {
-            throw new HttpsError("invalid-argument", "Pantry is empty.");
-        }
+        if (!pantryInput.length) throw new HttpsError("invalid-argument", "Pantry is empty.");
 
         const maxRecipes = Number(data.max_recipes || 5);
         const maxTime = Number(data.max_time_minutes || 30);
         const diet = String(data.diet || "any");
         const allergies = Array.isArray(data.allergies) ? data.allergies : [];
 
-        // Enrich pantry with expiry metadata (used for scoring and prompt)
-        const pantry = pantryInput.map((p) => {
-            const name = String(p.name || "").trim();
-            const quantity = Number(p.quantity || 0);
-            const expiryIso = p.expiry_iso ? String(p.expiry_iso) : null;
+        // You already enrich pantry (days_left, expiring_soon). Keep your current logic.
+        const pantry = pantryInput.map((p) => ({
+            name: String(p.name || "").trim(),
+            quantity: Number(p.quantity || 0),
+            expiry_iso: p.expiry_iso ? String(p.expiry_iso) : null,
+            days_left: p.days_left ?? null,
+            expiring_soon: Boolean(p.expiring_soon),
+        }));
 
-            const d = expiryIso ? daysUntil(expiryIso) : null;
-            const expiringSoon = d !== null ? d <= 3 : false;
+        const fp = fingerprintPantry(pantry);
+        const cacheRef = admin.firestore().collection("recipe_cache").doc(fp);
 
-            return {
-                name,
-                quantity,
-                expiry_iso: expiryIso,
-                days_left: d,
-                expiring_soon: expiringSoon,
-            };
-        });
+        // ✅ 1) Check cache
+        const cachedSnap = await cacheRef.get();
+        if (cachedSnap.exists) {
+            const cached = cachedSnap.data();
+            const expiresAt = cached?.expiresAt?.toDate?.();
+            if (expiresAt && expiresAt > new Date()) {
+                return { ...cached.response, cache: "HIT", fingerprint: fp };
+            }
+        }
 
-        // (Optional) You can pre-sort pantry so Gemini sees urgent items first
-        pantry.sort((a, b) => {
-            const da = a.days_left ?? 9999;
-            const db = b.days_left ?? 9999;
-            return da - db;
-        });
-
+        // ✅ 2) Miss -> call Gemini
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY.value());
         const model = genAI.getGenerativeModel({
             model: "gemini-2.5-flash",
@@ -67,41 +71,14 @@ exports.generateRecipes = onCall(
 
         const prompt = `
 Return ONLY valid JSON.
-
-Schema:
-{
-  "recipes": [
-    {
-      "title": string,
-      "cook_time_minutes": number,
-      "difficulty": "easy" | "medium" | "hard",
-      "uses": string[],
-      "missing": string[],
-      "missing_count": number,
-      "expiring_items_used": string[],
-      "match_score": number, 
-      "steps": string[]
-    }
-  ]
-}
-
+Schema: { "recipes": [ ... ] }
 Rules:
 - Generate ${maxRecipes} recipes
 - Max cook time ${maxTime} minutes
 - Diet: ${diet}
 - Allergies: ${JSON.stringify(allergies)}
-- Prefer using items marked expiring_soon=true first
-- "uses" must ONLY include items that appear in Pantry names
-- "expiring_items_used" must be a subset of "uses"
-- match_score is 0..100 based on:
-    + Uses more pantry items
-    + Uses more expiring_soon items (big boost)
-    - Fewer missing ingredients
-    - Keeps time <= ${maxTime}
-- Keep steps concise (max ~8 steps)
-- Return sorted by match_score DESC
-
-Pantry (most urgent first):
+- Prefer expiring_soon items first
+Pantry:
 ${JSON.stringify(pantry, null, 2)}
 `;
 
@@ -110,21 +87,32 @@ ${JSON.stringify(pantry, null, 2)}
             const text = result.response.text();
             const json = JSON.parse(text);
 
-            // Safety: ensure recipes is an array
             const recipes = Array.isArray(json.recipes) ? json.recipes : [];
+            recipes.sort((a, b) => Number(b.match_score || 0) - Number(a.match_score || 0));
 
-            // Extra safety: server-side sort by match_score (in case model ignores)
-            recipes.sort((a, b) => (Number(b.match_score || 0) - Number(a.match_score || 0)));
+            const response = { recipes };
 
-            return { recipes };
+            // ✅ 3) Save cache (24h)
+            const now = admin.firestore.Timestamp.now();
+            const expiresAt = admin.firestore.Timestamp.fromDate(
+                new Date(Date.now() + 24 * 60 * 60 * 1000)
+            );
+
+            await cacheRef.set(
+                {
+                    fingerprint: fp,
+                    createdAt: now,
+                    expiresAt,
+                    response,
+                    model: "gemini-2.5-flash",
+                    version: 1,
+                },
+                { merge: true }
+            );
+
+            return { ...response, cache: "MISS", fingerprint: fp };
         } catch (e) {
-            const details = {
-                name: e?.name,
-                message: e?.message,
-                status: e?.status,
-                raw: String(e),
-            };
-            throw new HttpsError("internal", details.message || details.raw || "Gemini request failed");
+            throw new HttpsError("internal", e?.message || String(e));
         }
     }
 );
